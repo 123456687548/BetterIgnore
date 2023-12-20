@@ -1,0 +1,12 @@
+## Interface: 100200
+## Title: Blacklist
+## Version: 1.0.0
+## Notes: DB for Keyleavers and Trolls
+## Creator: 123456687548
+## Author: 123456687548
+## OptionalDeps: Ace3, LibSharedMedia-3.0, 
+## SavedVariables: BlacklistDB
+
+embeds.xml
+
+Blacklist.lua
