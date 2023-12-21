@@ -100,16 +100,19 @@ function Blacklist:addToBlacklist(frame)
     end
 
     Blacklist:Print("Adding to Blacklist: "..key)
-    Dump(frame)
 
     self.db.global.blacklist[key] = {
         date = date("%Y.%m.%d %H:%M:%S"),
-        reason = "NONE",
+        reason = "NOT YET IMPLEMENTED",
     }
 end
 
 function Blacklist:isBlacklisted(key)
     return self.db.global.blacklist[key] ~= nil
+end
+
+function Blacklist:getBlacklistInfo(key)
+    return self.db.global.blacklist[key]
 end
 
 local function ContextMenuButton_OnEnter(button)
@@ -149,7 +152,6 @@ function Blacklist:SkinDropDownList(frame)
 end
 
 function Blacklist:SkinButton(button)
-    --local r, g, b = unpack(E.media.rgbvaluecolor)
     local r = 255
     local g = 0
     local b = 0
@@ -176,9 +178,9 @@ function Blacklist:CreateMenu()
         return
     end
 
-    local frame = CreateFrame("Button", "WTContextMenu", UIParent, "UIDropDownListTemplate")
+    local frame = CreateFrame("Button", "BlacklistMenu", UIParent, "UIDropDownListTemplate")
     --self:SkinDropDownList(frame)
-    frame:Hide()
+    --frame:Hide()
 
     frame:SetScript("OnShow", ContextMenu_OnShow)
     frame:SetScript("OnHide", nil)
@@ -187,28 +189,26 @@ function Blacklist:CreateMenu()
 
     frame.buttons = {}
 
-    for i = 1, 2 do--UIDROPDOWNMENU_MAXBUTTONS do
-        local button = _G["WTContextMenuButton" .. i]
-        if not button then
-            button = CreateFrame("Button", "WTContextMenuButton" .. i, frame, "UIDropDownMenuButtonTemplate")
-        end
-
-        local text = _G[button:GetName() .. "NormalText"]
-        text:ClearAllPoints()
-        text:SetPoint("TOPLEFT", button, "TOPLEFT", 0, 0)
-        text:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 0, 0)
-        button.Text = text
-
-        button:SetScript("OnEnable", nil)
-        button:SetScript("OnDisable", nil)
-        button:SetScript("OnClick", nil)
-
-        self:SkinButton(button)
-
-        button:Hide()
-
-        frame.buttons[i] = button
+    local button = _G["BlacklistMenuButton1"]
+    if not button then
+        button = CreateFrame("Button", "BlacklistMenuButton1", frame, "UIDropDownMenuButtonTemplate")
     end
+
+    local text = _G[button:GetName() .. "NormalText"]
+    text:ClearAllPoints()
+    text:SetPoint("TOPLEFT", button, "TOPLEFT", 0, 0)
+    text:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 0, 0)
+    button.Text = text
+
+    button:SetScript("OnEnable", nil)
+    button:SetScript("OnDisable", nil)
+    button:SetScript("OnClick", nil)
+
+    self:SkinButton(button)
+
+    --button:Hide()
+
+    frame.buttons[1] = button
 
     self.menu = frame
 end
@@ -272,7 +272,6 @@ function Blacklist:DisplayButtons()
 end
 
 function Blacklist:ShowMenu(frame)
-    Blacklist:Print("ShowMenu")
     local dropdown = frame.dropdown
 
     wipe(self.cache)
@@ -285,7 +284,7 @@ function Blacklist:ShowMenu(frame)
         communityClubID = dropdown.communityClubID,
         bnetIDAccount = dropdown.bnetIDAccount
     }
-    Dump(dropdown)
+    
     if self.cache.which then
         if self:DisplayButtons() then
             self.menu:SetParent(frame)
@@ -296,7 +295,7 @@ function Blacklist:ShowMenu(frame)
             frame:SetHeight(frame:GetHeight() + menuHeight)
 
             self.menu:ClearAllPoints()
-            local offset = -16
+            local offset = 0
 
             self.menu:SetPoint("BOTTOMLEFT", 0, offset)
             self.menu:SetPoint("BOTTOMRIGHT", 0, offset)
@@ -312,20 +311,17 @@ function Blacklist:CloseMenu(frame)
 end
 
 local function TooltipCallback(self)
-    --Blacklist:Print("TooltipCallback")
     local _, unit = self:GetUnit()
     if not unit or not UnitIsPlayer(unit) then
         return
     end
 
     local key = Blacklist:getUnitNameAndRealmFromTarget(unit)
-    --Blacklist:Print(key)
-
-    self:AddLine("Test")
-    self:AddLine(key)
 
     if Blacklist:isBlacklisted(key) then
-        self:AddLine("Player is Blacklisted!")
+        local blacklistInfo = Blacklist:getBlacklistInfo(key)
+        self:AddLine("Player is Blacklisted!", 255, 0, 0)
+        self:AddLine("Reason: "..blacklistInfo.reason, 255, 0, 0)
     end
 
     self:Show()
@@ -336,31 +332,68 @@ local function SetSearchEntry(tooltip, resultID, _)
     local leaderName = Blacklist:getLeaderNameAndServerFromName(entry.leaderName)
 
     if Blacklist:isBlacklisted(leaderName) then
-        tooltip:AddLine("Player is Blacklisted!")
+        local blacklistInfo = Blacklist:getBlacklistInfo(leaderName)
+        tooltip:AddLine("Player is Blacklisted!", 255, 0, 0)
+        tooltip:AddLine("Reason: "..blacklistInfo.reason, 255, 0, 0)
+        tooltip:Show()
     end
-    tooltip:AddLine("test")
-
-    tooltip:Show()
 end
 
 local function OnLFGListSearchEntryUpdate(self)
     local searchResultInfo = C_LFGList.GetSearchResultInfo(self.resultID)
-    local leaderName = Blacklist:getLeaderNameAndServerFromName(searchResultInfo.leaderName)
 
-    if Blacklist:isBlacklisted(leaderName) then
-        self.Name:SetTextColor(255, 0, 0)
+    if searchResultInfo.leaderName then
+        local leaderName = Blacklist:getLeaderNameAndServerFromName(searchResultInfo.leaderName)
+
+        if Blacklist:isBlacklisted(leaderName) then
+            self.Name:SetText("[B] "..searchResultInfo.name)
+            self.Name:SetTextColor(255, 0, 0)
+        end
     end
 end
 
 local function test(member, appID, memberIdx, status, pendingStatus)
-    Blacklist:Print("LFGListApplicationViewer_UpdateApplicantMember")
 	local name = C_LFGList.GetApplicantMemberInfo(appID, memberIdx);
-    Blacklist:Print(name)
+
     local applicantName = Blacklist:getLeaderNameAndServerFromName(name)
     if Blacklist:isBlacklisted(applicantName) then
-        member.Name:SetTextColor(255, 0, 0)
         member.Name:SetText("[B] "..name)
+        member.Name:SetTextColor(255, 0, 0)
     end
+end
+
+local OnEnterApplicant
+local OnLeaveApplicant
+local hooked = {}
+
+local function HookApplicantButtons(buttons)
+    for _, button in pairs(buttons) do
+        if not hooked[button] then
+            hooked[button] = true
+            button:HookScript("OnEnter", OnEnterApplicant)
+            button:HookScript("OnLeave", OnLeaveApplicant)
+        end
+    end
+end
+
+function OnEnterApplicant(self)
+    if self.applicantID and self.Members then
+        HookApplicantButtons(self.Members)
+    elseif self.memberIdx then
+        local parent = self:GetParent()
+        local fullName = C_LFGList.GetApplicantMemberInfo(parent.applicantID, self.memberIdx)
+        local applicantName = Blacklist:getLeaderNameAndServerFromName(fullName)
+        if Blacklist:isBlacklisted(applicantName) then
+            local blacklistInfo = Blacklist:getBlacklistInfo(applicantName)
+            GameTooltip:AddLine("Player is Blacklisted!", 255, 0, 0)
+            GameTooltip:AddLine("Reason: "..blacklistInfo.reason, 255, 0, 0)
+            GameTooltip:Show()
+        end
+    end
+end
+
+function OnLeaveApplicant(self)
+    GameTooltip:Hide()
 end
 
 function Blacklist:OnInitialize()
@@ -372,13 +405,25 @@ function Blacklist:OnInitialize()
     self:SecureHookScript(_G.DropDownList1, "OnShow", "ShowMenu")
     self:SecureHookScript(_G.DropDownList1, "OnHide", "CloseMenu")
 
-    self.tempButton = CreateFrame("Button", "WTContextMenuTempButton", UIParent, "SecureActionButtonTemplate")
-    self.tempButton:SetAttribute("type1", "macro")
-
     hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", SetSearchEntry)
     --hooksecurefunc(FriendsTooltip, "Show", TooltipCallback) eigener callback
     hooksecurefunc("LFGListSearchEntry_Update", OnLFGListSearchEntryUpdate)
     hooksecurefunc("LFGListApplicationViewer_UpdateApplicantMember", test)
+
+    LFGListFrame.ApplicationViewer.ScrollBox:RegisterCallback(ScrollBoxListMixin.Event.OnUpdate, function()
+        local scrollBox = LFGListFrame.ApplicationViewer.ScrollBox
+        local frames = scrollBox:GetFrames()
+        frames = scrollBox:GetFrames()
+
+        for _, frame in ipairs(frames) do
+            frame:HookScript("OnEnter", OnEnterApplicant)
+            frame:HookScript("OnLeave", OnLeaveApplicant)
+        end
+    end)
+
+    LFGListFrame.ApplicationViewer.ScrollBox:RegisterCallback(ScrollBoxListMixin.Event.OnScroll, function()
+        GameTooltip:Hide()
+    end)
 end
 
 function Dump(tbl)
