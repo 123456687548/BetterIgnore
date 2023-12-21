@@ -10,6 +10,7 @@ local PredefinedType = {
         supportTypes = {
             PARTY = true,
             PLAYER = true,
+            ENEMY_PLAYER = true,
             RAID_PLAYER = true,
             RAID = true,
             FRIEND = true,
@@ -64,6 +65,13 @@ function Blacklist:getUnitNameAndRealmFromTarget(unit)
     return unitName.."-"..unitRealm
 end
 
+function Blacklist:getLeaderNameAndServerFromName(leaderName)
+    if not string.find(leaderName, "-") then
+        leaderName = leaderName.."-"..GetRealmName()
+    end
+    return leaderName
+end
+
 function Blacklist:addToBlacklist(frame)
     if not self.db.global.blacklist then
         self.db.global.blacklist = {}
@@ -98,6 +106,10 @@ function Blacklist:addToBlacklist(frame)
         date = date("%Y.%m.%d %H:%M:%S"),
         reason = "NONE",
     }
+end
+
+function Blacklist:isBlacklisted(key)
+    return self.db.global.blacklist[key] ~= nil
 end
 
 local function ContextMenuButton_OnEnter(button)
@@ -175,7 +187,7 @@ function Blacklist:CreateMenu()
 
     frame.buttons = {}
 
-    for i = 1, UIDROPDOWNMENU_MAXBUTTONS do
+    for i = 1, 2 do--UIDROPDOWNMENU_MAXBUTTONS do
         local button = _G["WTContextMenuButton" .. i]
         if not button then
             button = CreateFrame("Button", "WTContextMenuButton" .. i, frame, "UIDropDownMenuButtonTemplate")
@@ -260,6 +272,7 @@ function Blacklist:DisplayButtons()
 end
 
 function Blacklist:ShowMenu(frame)
+    Blacklist:Print("ShowMenu")
     local dropdown = frame.dropdown
 
     wipe(self.cache)
@@ -272,6 +285,7 @@ function Blacklist:ShowMenu(frame)
         communityClubID = dropdown.communityClubID,
         bnetIDAccount = dropdown.bnetIDAccount
     }
+    Dump(dropdown)
     if self.cache.which then
         if self:DisplayButtons() then
             self.menu:SetParent(frame)
@@ -282,7 +296,7 @@ function Blacklist:ShowMenu(frame)
             frame:SetHeight(frame:GetHeight() + menuHeight)
 
             self.menu:ClearAllPoints()
-            local offset = 16
+            local offset = -16
 
             self.menu:SetPoint("BOTTOMLEFT", 0, offset)
             self.menu:SetPoint("BOTTOMRIGHT", 0, offset)
@@ -297,6 +311,58 @@ function Blacklist:CloseMenu(frame)
     end
 end
 
+local function TooltipCallback(self)
+    --Blacklist:Print("TooltipCallback")
+    local _, unit = self:GetUnit()
+    if not unit or not UnitIsPlayer(unit) then
+        return
+    end
+
+    local key = Blacklist:getUnitNameAndRealmFromTarget(unit)
+    --Blacklist:Print(key)
+
+    self:AddLine("Test")
+    self:AddLine(key)
+
+    if Blacklist:isBlacklisted(key) then
+        self:AddLine("Player is Blacklisted!")
+    end
+
+    self:Show()
+end
+
+local function SetSearchEntry(tooltip, resultID, _)
+    local entry = C_LFGList.GetSearchResultInfo(resultID)
+    local leaderName = Blacklist:getLeaderNameAndServerFromName(entry.leaderName)
+
+    if Blacklist:isBlacklisted(leaderName) then
+        tooltip:AddLine("Player is Blacklisted!")
+    end
+    tooltip:AddLine("test")
+
+    tooltip:Show()
+end
+
+local function OnLFGListSearchEntryUpdate(self)
+    local searchResultInfo = C_LFGList.GetSearchResultInfo(self.resultID)
+    local leaderName = Blacklist:getLeaderNameAndServerFromName(searchResultInfo.leaderName)
+
+    if Blacklist:isBlacklisted(leaderName) then
+        self.Name:SetTextColor(255, 0, 0)
+    end
+end
+
+local function test(member, appID, memberIdx, status, pendingStatus)
+    Blacklist:Print("LFGListApplicationViewer_UpdateApplicantMember")
+	local name = C_LFGList.GetApplicantMemberInfo(appID, memberIdx);
+    Blacklist:Print(name)
+    local applicantName = Blacklist:getLeaderNameAndServerFromName(name)
+    if Blacklist:isBlacklisted(applicantName) then
+        member.Name:SetTextColor(255, 0, 0)
+        member.Name:SetText("[B] "..name)
+    end
+end
+
 function Blacklist:OnInitialize()
     self.db = LibStub("AceDB-3.0"):New("BlacklistDB")
     self.cache = {}
@@ -308,9 +374,16 @@ function Blacklist:OnInitialize()
 
     self.tempButton = CreateFrame("Button", "WTContextMenuTempButton", UIParent, "SecureActionButtonTemplate")
     self.tempButton:SetAttribute("type1", "macro")
+
+    hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", SetSearchEntry)
+    --hooksecurefunc(FriendsTooltip, "Show", TooltipCallback) eigener callback
+    hooksecurefunc("LFGListSearchEntry_Update", OnLFGListSearchEntryUpdate)
+    hooksecurefunc("LFGListApplicationViewer_UpdateApplicantMember", test)
 end
 
 function Dump(tbl)
     Blacklist:Print()
     DevTools_Dump(tbl)
 end
+
+TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, TooltipCallback)
