@@ -1,10 +1,112 @@
---local W, F, E, L = unpack((select(2, ...)))
-
-local MyAddon = LibStub("AceAddon-3.0"):NewAddon("MyAddon", "AceConsole-3.0", "AceHook-3.0")
+local Blacklist = LibStub("AceAddon-3.0"):NewAddon("MyAddon", "AceConsole-3.0", "AceHook-3.0")
 
 local _G = _G
 local UIParent = UIParent
 local UIDROPDOWNMENU_MAXBUTTONS = UIDROPDOWNMENU_MAXBUTTONS
+
+local PredefinedType = {
+    BLACKLIST = {
+        name = "Blacklist",
+        supportTypes = {
+            PARTY = true,
+            PLAYER = true,
+            RAID_PLAYER = true,
+            RAID = true,
+            FRIEND = true,
+            GUILD = true,
+            GUILD_OFFLINE = true,
+            CHAT_ROSTER = true,
+            TARGET = true,
+            ARENAENEMY = true,
+            FOCUS = true,
+            WORLD_STATE_SCORE = true,
+            COMMUNITIES_WOW_MEMBER = true,
+            COMMUNITIES_GUILD_MEMBER = true,
+            RAF_RECRUIT = true
+        },
+        func = function(frame)
+            Blacklist:addToBlacklist(frame)
+        end,
+        isHidden = function(frame)
+            --NPC
+            if frame.unit and frame.unit == "target" then
+                if not UnitPlayerControlled("target") then
+                    return true
+                end
+            end
+
+            --NPC
+            if frame.unit and frame.unit == "focus" then
+                if not UnitPlayerControlled("focus") then
+                    return true
+                end
+            end
+
+            --self
+            if frame.name == UnitName('player') then
+                if not frame.server or frame.server == GetRealmName() then
+                    return true
+                end
+            end
+
+            return false
+        end
+    },
+}
+
+function Blacklist:getUnitNameAndRealmFromTarget(unit)
+    local unitName, unitRealm = UnitName(unit)
+
+    if not unitRealm then
+        unitRealm = GetRealmName()
+    end
+
+    return unitName.."-"..unitRealm
+end
+
+function Blacklist:addToBlacklist(frame)
+    if not self.db.global.blacklist then
+        self.db.global.blacklist = {}
+    end
+
+    --todo: frame.which alle möglichkeiten abdecken
+    local key
+    if frame.unit then
+        key = self:getUnitNameAndRealmFromTarget(frame.unit)
+    end
+
+    if frame.chatTarget and not key then
+        key = frame.chatTarget
+    end
+
+    if not key then
+        Blacklist:Print("CAN'T CREATE KEY")
+        Dump(frame)
+        return
+    end
+
+    if self.db.global.blacklist[key] then
+        Blacklist:Print("UNIT ALREADY BLACKLISTED")
+        Dump(frame)
+        return
+    end
+
+    Blacklist:Print("Adding to Blacklist: "..key)
+    Dump(frame)
+
+    self.db.global.blacklist[key] = {
+        date = date("%Y.%m.%d %H:%M:%S"),
+        reason = "NONE",
+    }
+end
+
+local function ContextMenuButton_OnEnter(button)
+    _G[button:GetName() .. "Highlight"]:Show()
+end
+
+local function ContextMenuButton_OnLeave(button)
+    _G[button:GetName() .. "Highlight"]:Hide()
+end
 
 local function ContextMenu_OnShow(menu)
     local parent = menu:GetParent() or menu
@@ -21,12 +123,49 @@ local function ContextMenu_OnShow(menu)
     return height
 end
 
-function MyAddon:CreateMenu()
+function Blacklist:SkinDropDownList(frame)
+    local Backdrop = _G[frame:GetName() .. "Backdrop"]
+    local menuBackdrop = _G[frame:GetName() .. "MenuBackdrop"]
+
+    if Backdrop then
+        Backdrop:Kill()
+    end
+
+    if menuBackdrop then
+        menuBackdrop:Kill()
+    end
+end
+
+function Blacklist:SkinButton(button)
+    --local r, g, b = unpack(E.media.rgbvaluecolor)
+    local r = 255
+    local g = 0
+    local b = 0
+
+    local highlight = _G[button:GetName() .. "Highlight"]
+    --highlight:SetTexture(E.Media.Textures.Highlight)
+    highlight:SetBlendMode("BLEND")
+    highlight:SetDrawLayer("BACKGROUND")
+    highlight:SetVertexColor(r, g, b)
+
+    button:SetScript("OnEnter", ContextMenuButton_OnEnter)
+    button:SetScript("OnLeave", ContextMenuButton_OnLeave)
+
+    _G[button:GetName() .. "Check"]:SetAlpha(0)
+    _G[button:GetName() .. "UnCheck"]:SetAlpha(0)
+    _G[button:GetName() .. "Icon"]:SetAlpha(0)
+    _G[button:GetName() .. "ColorSwatch"]:SetAlpha(0)
+    _G[button:GetName() .. "ExpandArrow"]:SetAlpha(0)
+    _G[button:GetName() .. "InvisibleButton"]:SetAlpha(0)
+end
+
+function Blacklist:CreateMenu()
     if self.menu then
         return
     end
 
     local frame = CreateFrame("Button", "WTContextMenu", UIParent, "UIDropDownListTemplate")
+    --self:SkinDropDownList(frame)
     frame:Hide()
 
     frame:SetScript("OnShow", ContextMenu_OnShow)
@@ -52,6 +191,8 @@ function MyAddon:CreateMenu()
         button:SetScript("OnDisable", nil)
         button:SetScript("OnClick", nil)
 
+        self:SkinButton(button)
+
         button:Hide()
 
         frame.buttons[i] = button
@@ -60,42 +201,7 @@ function MyAddon:CreateMenu()
     self.menu = frame
 end
 
-function MyAddon:UpdateMenu()
-    local buttonIndex = 1
-
-    self:UpdateButton(buttonIndex, {
-        name = "test",
-        supportTypes = {
-            PARTY = true,
-            PLAYER = true,
-            RAID_PLAYER = true,
-            FRIEND = true,
-            BN_FRIEND = true,
-            GUILD = true,
-            CHAT_ROSTER = true,
-            TARGET = true,
-            FOCUS = true,
-            COMMUNITIES_WOW_MEMBER = true,
-            COMMUNITIES_GUILD_MEMBER = true,
-            RAF_RECRUIT = true
-        },
-        isHidden = false,
-        func = function(frame)
-            MyAddon:Print("Clicked btn")
-        end
-    }, true)
-    buttonIndex = buttonIndex + 1
-
-    for i, button in pairs(self.menu.buttons) do
-        if i >= buttonIndex then
-            button:SetScript("OnClick", nil)
-            button.Text:Hide()
-            button.supportTypes = nil
-        end
-    end
-end
-
-function MyAddon:UpdateButton(index, config, closeAfterFunction)
+function Blacklist:UpdateButton(index, config, closeAfterFunction)
     local button = self.menu.buttons[index]
     if not button then
         return
@@ -118,52 +224,93 @@ function MyAddon:UpdateButton(index, config, closeAfterFunction)
     )
 end
 
-function MyAddon:ShowMenu(frame)
-    MyAddon:Print("ShowMenu")
+function Blacklist:UpdateMenu()
+    local buttonIndex = 1
 
-    self.menu:SetParent(frame)
-    self.menu:SetFrameStrata(frame:GetFrameStrata())
-    self.menu:SetFrameLevel(frame:GetFrameLevel() + 2)
+    self:UpdateButton(buttonIndex, PredefinedType.BLACKLIST, true)
+    buttonIndex = buttonIndex + 1
 
-    local menuHeight = ContextMenu_OnShow(self.menu)
-    frame:SetHeight(frame:GetHeight() + menuHeight)
-
-    self.menu:ClearAllPoints()
-    local offset = 16
-    -- if C_AddOns_IsAddOnLoaded("RaiderIO") then
-    --     for _, child in pairs {_G.DropDownList1:GetChildren()} do
-    --         local name = child:IsShown() and child:GetName()
-    --         if name and strfind(name, "^LibDropDownExtensionCustomDropDown") then
-    --             offset = 47
-    --         end
-    --     end
-    -- end
-
-    self.menu:Point("BOTTOMLEFT", 0, offset)
-    self.menu:Point("BOTTOMRIGHT", 0, offset)
-    self.menu:Show()
+    for i, button in pairs(self.menu.buttons) do
+        if i >= buttonIndex then
+            button:SetScript("OnClick", nil)
+            button.Text:Hide()
+            button.supportTypes = nil
+        end
+    end
 end
 
-function MyAddon:CloseMenu(frame)
-    MyAddon:Print("CloseMenu")
+function Blacklist:DisplayButtons()
+    local buttonOrder = 0
+    for _, button in pairs(self.menu.buttons) do
+        if button.supportTypes and button.supportTypes[self.cache.which] then
+            if not button.isHidden(self.cache) then
+                buttonOrder = buttonOrder + 1
+                button:Show()
+                button:ClearAllPoints()
+                button:SetPoint("TOPLEFT", self.menu, "TOPLEFT", 16, -16 * buttonOrder)
+            else
+                button:Hide()
+            end
+        else
+            button:Hide()
+        end
+    end
+
+    return buttonOrder > 0
 end
 
-function MyAddon:OnInitialize()
-    MyAddon:Print("OnInitialize")
-    MyAddon:Print(MyAddon)
-    MyAddon:Print(self)
-    MyAddon:Print(_G)
-    
+function Blacklist:ShowMenu(frame)
+    local dropdown = frame.dropdown
+
+    wipe(self.cache)
+    self.cache = {
+        which = dropdown.which,
+        name = dropdown.name,
+        unit = dropdown.unit,
+        server = dropdown.server,
+        chatTarget = dropdown.chatTarget,
+        communityClubID = dropdown.communityClubID,
+        bnetIDAccount = dropdown.bnetIDAccount
+    }
+    if self.cache.which then
+        if self:DisplayButtons() then
+            self.menu:SetParent(frame)
+            self.menu:SetFrameStrata(frame:GetFrameStrata())
+            self.menu:SetFrameLevel(frame:GetFrameLevel() + 2)
+
+            local menuHeight = ContextMenu_OnShow(self.menu)
+            frame:SetHeight(frame:GetHeight() + menuHeight)
+
+            self.menu:ClearAllPoints()
+            local offset = 16
+
+            self.menu:SetPoint("BOTTOMLEFT", 0, offset)
+            self.menu:SetPoint("BOTTOMRIGHT", 0, offset)
+            self.menu:Show()
+        end
+    end
+end
+
+function Blacklist:CloseMenu(frame)
+    if self.menu then
+        self.menu:Hide()
+    end
+end
+
+function Blacklist:OnInitialize()
+    self.db = LibStub("AceDB-3.0"):New("BlacklistDB")
+    self.cache = {}
+
     self:CreateMenu()
-    self:UpdateButton()
+    self:UpdateMenu()
     self:SecureHookScript(_G.DropDownList1, "OnShow", "ShowMenu")
     self:SecureHookScript(_G.DropDownList1, "OnHide", "CloseMenu")
+
+    self.tempButton = CreateFrame("Button", "WTContextMenuTempButton", UIParent, "SecureActionButtonTemplate")
+    self.tempButton:SetAttribute("type1", "macro")
 end
 
-function MyAddon:OnEnable()
-    MyAddon:Print("OnEnable")
-end
-
-function MyAddon:OnDisable()
-    MyAddon:Print("OnDisable")
+function Dump(tbl)
+    Blacklist:Print()
+    DevTools_Dump(tbl)
 end
