@@ -1,5 +1,7 @@
 local Blacklist = LibStub("AceAddon-3.0"):NewAddon("Blacklist", "AceConsole-3.0", "AceHook-3.0", "AceComm-3.0", "AceSerializer-3.0")
 
+local C_AddOns_IsAddOnLoaded = C_AddOns.IsAddOnLoaded
+
 local COM_PREFIX = "BLACKLIST"
 local COM_PREFIX_ASYNC = COM_PREFIX.."-AS"
 local COM_PREFIX_CHECK = COM_PREFIX.."-CHECK"
@@ -8,9 +10,12 @@ local COM_PREFIX_ANSWER = COM_PREFIX.."-ANSWER"
 local _G = _G
 local UIParent = UIParent
 
+local blacklist
+
 local PredefinedType = {
     BLACKLIST = {
         name = "Blacklist",
+        color = { r = 255, g = 0, b = 0},
         supportTypes = {
             PARTY = true,
             PLAYER = true,
@@ -54,9 +59,78 @@ local PredefinedType = {
                 end
             end
 
+            local key = Blacklist:createKeyFromFrame(frame)
+            if not key then
+                return true
+            end
+
+            local blacklistInfo = Blacklist:isBlacklisted(key)
+            if blacklistInfo then
+                return true
+            end
+            
             return false
         end
     },
+    PARDON = {
+        name = "Pardon",
+        color = { r = 0, g = 255, b = 0},
+        supportTypes = {
+            PARTY = true,
+            PLAYER = true,
+            ENEMY_PLAYER = true,
+            RAID_PLAYER = true,
+            RAID = true,
+            FRIEND = true,
+            GUILD = true,
+            GUILD_OFFLINE = true,
+            CHAT_ROSTER = true,
+            TARGET = true,
+            ARENAENEMY = true,
+            FOCUS = true,
+            WORLD_STATE_SCORE = true,
+            COMMUNITIES_WOW_MEMBER = true,
+            COMMUNITIES_GUILD_MEMBER = true,
+            RAF_RECRUIT = true
+        },
+        func = function(frame)
+            Blacklist:removeFromBlacklist(frame)
+        end,
+        isHidden = function(frame)
+            --NPC
+            if frame.unit and frame.unit == "target" then
+                if not UnitPlayerControlled("target") then
+                    return true
+                end
+            end
+
+            --NPC
+            if frame.unit and frame.unit == "focus" then
+                if not UnitPlayerControlled("focus") then
+                    return true
+                end
+            end
+
+            --self
+            if frame.name == UnitName('player') then
+                if not frame.server or frame.server == GetRealmName() then
+                    return true
+                end
+            end
+
+            local key = Blacklist:createKeyFromFrame(frame)
+            if not key then
+                return true
+            end
+
+            local blacklistInfo = Blacklist:isBlacklisted(key)
+            if not blacklistInfo then
+                return true
+            end
+
+            return false
+        end
+    }
 }
 
 local asyncCounter = 1
@@ -108,8 +182,7 @@ function Blacklist:getLeaderNameAndServerFromName(leaderName)
     return leaderName
 end
 
-function Blacklist:addToBlacklist(frame)
-    --todo: frame.which alle möglichkeiten abdecken
+function Blacklist:createKeyFromFrame(frame)
     local key
     if frame.unit then
         key = self:getUnitNameAndRealmFromTarget(frame.unit)
@@ -120,35 +193,55 @@ function Blacklist:addToBlacklist(frame)
     end
 
     if not key then
-        Blacklist:Print("CAN'T CREATE KEY")
-        Dump(frame)
+        Dump(frame, "CAN'T CREATE KEY")
+        return nil
+    end
+
+    return key
+end
+
+function Blacklist:addToBlacklist(frame)
+    --todo: frame.which alle möglichkeiten abdecken
+    local key = self:createKeyFromFrame(frame)
+
+    if not key then
         return
     end
 
-    if self.db.global.blacklist[key] then
-        Blacklist:Print("UNIT ALREADY BLACKLISTED")
-        Dump(frame)
+    if blacklist[key] then
+        Dump(frame, "UNIT ALREADY BLACKLISTED")
         return
     end
 
-    Blacklist:Print("Adding to Blacklist: "..key)
-
-    self.db.global.blacklist[key] = {
+    blacklist[key] = {
         date = date("%Y.%m.%d %H:%M:%S"),
         reason = "NOT YET IMPLEMENTED",
     }
+
+    Blacklist:Print("Added < "..key.." > to Blacklist")
+end
+
+local function removeKeyFromTable(table, key)
+    table[key] = nil
+end
+
+function Blacklist:removeFromBlacklist(frame)
+    local key = self:createKeyFromFrame(frame)
+
+    if not key then
+        return
+    end
+
+    removeKeyFromTable(blacklist, key)
+    Blacklist:Print("Removed < "..key.." > from Blacklist")
 end
 
 function Blacklist:isBlacklisted(key)
-    return self.db.global.blacklist[key]
+    return blacklist[key]
 end
 
 function Blacklist:isBlacklistedRemote(askMessage, callback)
     Blacklist:sendAskAsync(askMessage, callback)
-end
-
-function Blacklist:getBlacklistInfo(key)
-    return self.db.global.blacklist[key]
 end
 
 local function ContextMenuButton_OnEnter(button)
@@ -209,6 +302,18 @@ function Blacklist:SkinButton(button)
     _G[button:GetName() .. "InvisibleButton"]:SetAlpha(0)
 end
 
+function Blacklist:SetHighlight(button, config)
+    local r = config.color.r
+    local g = config.color.g
+    local b = config.color.b
+
+    local highlight = _G[button:GetName() .. "Highlight"]
+    --highlight:SetTexture(E.Media.Textures.Highlight)
+    highlight:SetBlendMode("BLEND")
+    highlight:SetDrawLayer("BACKGROUND")
+    highlight:SetVertexColor(r, g, b)
+end
+
 function Blacklist:CreateMenu()
     if self.menu then
         return
@@ -225,26 +330,30 @@ function Blacklist:CreateMenu()
 
     frame.buttons = {}
 
-    local button = _G["BlacklistMenuButton1"]
-    if not button then
-        button = CreateFrame("Button", "BlacklistMenuButton1", frame, "UIDropDownMenuButtonTemplate")
+    local i = 1
+    for _ in pairs(PredefinedType) do
+        local button = _G["BlacklistMenuButton"..i]
+        if not button then
+            button = CreateFrame("Button", "BlacklistMenuButton"..i, frame, "UIDropDownMenuButtonTemplate")
+        end
+
+        local text = _G[button:GetName() .. "NormalText"]
+        text:ClearAllPoints()
+        text:SetPoint("TOPLEFT", button, "TOPLEFT", 0, 0)
+        text:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 0, 0)
+        button.Text = text
+
+        button:SetScript("OnEnable", nil)
+        button:SetScript("OnDisable", nil)
+        button:SetScript("OnClick", nil)
+
+        self:SkinButton(button)
+
+        button:Hide()
+
+        frame.buttons[i] = button
+        i = i + 1
     end
-
-    local text = _G[button:GetName() .. "NormalText"]
-    text:ClearAllPoints()
-    text:SetPoint("TOPLEFT", button, "TOPLEFT", 0, 0)
-    text:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 0, 0)
-    button.Text = text
-
-    button:SetScript("OnEnable", nil)
-    button:SetScript("OnDisable", nil)
-    button:SetScript("OnClick", nil)
-
-    self:SkinButton(button)
-
-    --button:Hide()
-
-    frame.buttons[1] = button
 
     self.menu = frame
 end
@@ -261,6 +370,8 @@ function Blacklist:UpdateButton(index, config, closeAfterFunction)
     button.supportTypes = config.supportTypes
     button.isHidden = config.isHidden
 
+    self:SetHighlight(button, config)
+
     button:SetScript(
         "OnClick",
         function()
@@ -276,6 +387,9 @@ function Blacklist:UpdateMenu()
     local buttonIndex = 1
 
     self:UpdateButton(buttonIndex, PredefinedType.BLACKLIST, true)
+    buttonIndex = buttonIndex + 1
+
+    self:UpdateButton(buttonIndex, PredefinedType.PARDON, true)
     buttonIndex = buttonIndex + 1
 
     for i, button in pairs(self.menu.buttons) do
@@ -320,7 +434,7 @@ function Blacklist:ShowMenu(frame)
         communityClubID = dropdown.communityClubID,
         bnetIDAccount = dropdown.bnetIDAccount
     }
-    
+
     if self.cache.which then
         if self:DisplayButtons() then
             self.menu:SetParent(frame)
@@ -332,6 +446,14 @@ function Blacklist:ShowMenu(frame)
 
             self.menu:ClearAllPoints()
             local offset = 0
+            if C_AddOns_IsAddOnLoaded("RaiderIO") then
+                for _, child in pairs {_G.DropDownList1:GetChildren()} do
+                    local name = child:IsShown() and child:GetName()
+                    if name and strfind(name, "^LibDropDownExtensionCustomDropDown") then
+                        offset = 47
+                    end
+                end
+            end
 
             self.menu:SetPoint("BOTTOMLEFT", 0, offset)
             self.menu:SetPoint("BOTTOMRIGHT", 0, offset)
@@ -542,7 +664,7 @@ function Blacklist:OnCommReceivedAsync(message, channel, sender) --(prefix, mess
     local success, msg = Blacklist:Deserialize(message)
 
     if msg.task == "isBlacklisted" then
-        local blacklistInfo = Blacklist:getBlacklistInfo(msg.ask)
+        local blacklistInfo = Blacklist:isBlacklisted(msg.ask)
         
         if blacklistInfo then
             Blacklist:sendAnswer({
@@ -566,6 +688,8 @@ function Blacklist:OnInitialize()
     if not self.db.global.blacklist then
         self.db.global.blacklist = {}
     end
+
+    blacklist = self.db.global.blacklist
 
     self.cache = {}
 
@@ -595,9 +719,9 @@ function Blacklist:OnInitialize()
     end)
 end
 
-function Dump(tbl)
-    Blacklist:Print()
-    DevTools_Dump(tbl)
+function Dump(table, desc)
+    Blacklist:Print(desc)
+    DevTools_Dump(table)
 end
 
 TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, TooltipCallback)
