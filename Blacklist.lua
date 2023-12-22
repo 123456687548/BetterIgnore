@@ -1,8 +1,12 @@
-local Blacklist = LibStub("AceAddon-3.0"):NewAddon("MyAddon", "AceConsole-3.0", "AceHook-3.0")
+local Blacklist = LibStub("AceAddon-3.0"):NewAddon("Blacklist", "AceConsole-3.0", "AceHook-3.0", "AceComm-3.0", "AceSerializer-3.0")
+
+local COM_PREFIX = "BLACKLIST"
+local COM_PREFIX_ASYNC = COM_PREFIX.."-AS"
+local COM_PREFIX_CHECK = COM_PREFIX.."-CHECK"
+local COM_PREFIX_ANSWER = COM_PREFIX.."-ANSWER"
 
 local _G = _G
 local UIParent = UIParent
-local UIDROPDOWNMENU_MAXBUTTONS = UIDROPDOWNMENU_MAXBUTTONS
 
 local PredefinedType = {
     BLACKLIST = {
@@ -55,6 +59,38 @@ local PredefinedType = {
     },
 }
 
+local asyncCounter = 1
+
+function Blacklist:sendMessage(msg, prefix)
+    prefix = prefix or COM_PREFIX
+    Blacklist:SendCommMessage(prefix, Blacklist:Serialize(msg), "RAID", nil)
+end
+
+function Blacklist:sendAnswer(msg)
+    Blacklist:SendCommMessage(msg.prefix, Blacklist:Serialize(msg.answer), msg.channel, msg.receiver)
+end
+
+function Blacklist:createAskMessage(key, task)
+    local prefix = COM_PREFIX_ASYNC..asyncCounter
+    asyncCounter = asyncCounter + 1 % 9999
+    return {
+        ask = key,
+        task = task,
+        prefix = prefix,
+        channel = "WHISPER",
+        receiver = self:getUnitNameAndRealmFromTarget("player")
+    }
+end
+
+function Blacklist:buildNextMessageHandler(askMessage, callback)
+    self:RegisterComm(askMessage.prefix, callback)
+end
+
+function Blacklist:sendAskAsync(askMessage, callback)
+    Blacklist:buildNextMessageHandler(askMessage, callback)
+    Blacklist:SendCommMessage(COM_PREFIX_ASYNC, Blacklist:Serialize(askMessage), "RAID", nil)
+end
+
 function Blacklist:getUnitNameAndRealmFromTarget(unit)
     local unitName, unitRealm = UnitName(unit)
 
@@ -73,10 +109,6 @@ function Blacklist:getLeaderNameAndServerFromName(leaderName)
 end
 
 function Blacklist:addToBlacklist(frame)
-    if not self.db.global.blacklist then
-        self.db.global.blacklist = {}
-    end
-
     --todo: frame.which alle möglichkeiten abdecken
     local key
     if frame.unit then
@@ -108,7 +140,11 @@ function Blacklist:addToBlacklist(frame)
 end
 
 function Blacklist:isBlacklisted(key)
-    return self.db.global.blacklist[key] ~= nil
+    return self.db.global.blacklist[key]
+end
+
+function Blacklist:isBlacklistedRemote(askMessage, callback)
+    Blacklist:sendAskAsync(askMessage, callback)
 end
 
 function Blacklist:getBlacklistInfo(key)
@@ -310,33 +346,93 @@ function Blacklist:CloseMenu(frame)
     end
 end
 
+local function remoteTooltipAdd(tooltip, playerName)
+    local remoteBlocks = {}
+
+    local askMessage = Blacklist:createAskMessage(playerName, "isBlacklisted")
+    Blacklist:isBlacklistedRemote(askMessage, function(self, message, channel, sender)
+        if askMessage.prefix ~= self or not Blacklist.Deserialize or sender == UnitName('player') then
+            return
+        end
+
+        local success, msg = Blacklist:Deserialize(message)
+
+        if remoteBlocks[playerName] and remoteBlocks[playerName][sender] then
+            return
+        end
+
+        remoteBlocks[playerName] = {[sender] = true}
+
+        tooltip:AddLine("-------------------------", 255, 0, 0)
+        tooltip:AddLine("Blocked by "..sender, 255, 0, 0)
+        if msg.reason then
+            tooltip:AddLine("Reason: "..msg.reason, 255, 0, 0)
+        end
+        if msg.date then
+            tooltip:AddLine("Date: "..msg.date, 255, 0, 0)
+        end
+        tooltip:AddLine("-------------------------", 255, 0, 0)
+        tooltip:Show()
+    end)
+end
+
 local function TooltipCallback(self)
     local _, unit = self:GetUnit()
     if not unit or not UnitIsPlayer(unit) then
         return
     end
 
-    local key = Blacklist:getUnitNameAndRealmFromTarget(unit)
+    local playerName = Blacklist:getUnitNameAndRealmFromTarget(unit)
 
-    if Blacklist:isBlacklisted(key) then
-        local blacklistInfo = Blacklist:getBlacklistInfo(key)
-        self:AddLine("Player is Blacklisted!", 255, 0, 0)
-        self:AddLine("Reason: "..blacklistInfo.reason, 255, 0, 0)
+    local tooltip = self
+
+    remoteTooltipAdd(tooltip, playerName)
+
+    local blacklistInfo = Blacklist:isBlacklisted(playerName)
+
+    if blacklistInfo then
+        tooltip:AddLine("Player is Blacklisted!", 255, 0, 0)
+        tooltip:AddLine("Reason: "..blacklistInfo.reason, 255, 0, 0)
     end
 
-    self:Show()
+    tooltip:Show()
 end
 
 local function SetSearchEntry(tooltip, resultID, _)
     local entry = C_LFGList.GetSearchResultInfo(resultID)
     local leaderName = Blacklist:getLeaderNameAndServerFromName(entry.leaderName)
 
-    if Blacklist:isBlacklisted(leaderName) then
-        local blacklistInfo = Blacklist:getBlacklistInfo(leaderName)
+    remoteTooltipAdd(tooltip, leaderName)
+
+    local blacklistInfo = Blacklist:isBlacklisted(leaderName)
+
+    if blacklistInfo then
         tooltip:AddLine("Player is Blacklisted!", 255, 0, 0)
         tooltip:AddLine("Reason: "..blacklistInfo.reason, 255, 0, 0)
         tooltip:Show()
     end
+end
+
+local function remoteTextChange(frame, playerName, originalName)
+    local remoteBlocks = {}
+
+    local askMessage = Blacklist:createAskMessage(playerName, "isBlacklisted")
+    Blacklist:isBlacklistedRemote(askMessage, function(self, message, channel, sender)
+        if askMessage.prefix ~= self or not Blacklist.Deserialize or sender == UnitName('player') then
+            return
+        end
+
+        local success, msg = Blacklist:Deserialize(message)
+
+        if remoteBlocks[playerName] and remoteBlocks[playerName][sender] then
+            return
+        end
+
+        remoteBlocks[playerName] = {[sender] = true}
+
+        frame.Name:SetText("[B] "..originalName)
+        frame.Name:SetTextColor(255, 0, 0)
+    end)
 end
 
 local function OnLFGListSearchEntryUpdate(self)
@@ -345,18 +441,27 @@ local function OnLFGListSearchEntryUpdate(self)
     if searchResultInfo.leaderName then
         local leaderName = Blacklist:getLeaderNameAndServerFromName(searchResultInfo.leaderName)
 
-        if Blacklist:isBlacklisted(leaderName) then
+        remoteTextChange(self, leaderName, searchResultInfo.name)
+
+        local blacklistInfo = Blacklist:isBlacklisted(leaderName)
+
+        if blacklistInfo then
             self.Name:SetText("[B] "..searchResultInfo.name)
             self.Name:SetTextColor(255, 0, 0)
         end
     end
 end
 
-local function test(member, appID, memberIdx, status, pendingStatus)
+local function OnUpdateApplicantMember(member, appID, memberIdx, status, pendingStatus)
 	local name = C_LFGList.GetApplicantMemberInfo(appID, memberIdx);
 
     local applicantName = Blacklist:getLeaderNameAndServerFromName(name)
-    if Blacklist:isBlacklisted(applicantName) then
+
+    remoteTextChange(member, applicantName, name)
+
+    local blacklistInfo = Blacklist:isBlacklisted(applicantName)
+
+    if blacklistInfo then
         member.Name:SetText("[B] "..name)
         member.Name:SetTextColor(255, 0, 0)
     end
@@ -383,8 +488,12 @@ function OnEnterApplicant(self)
         local parent = self:GetParent()
         local fullName = C_LFGList.GetApplicantMemberInfo(parent.applicantID, self.memberIdx)
         local applicantName = Blacklist:getLeaderNameAndServerFromName(fullName)
-        if Blacklist:isBlacklisted(applicantName) then
-            local blacklistInfo = Blacklist:getBlacklistInfo(applicantName)
+
+        remoteTooltipAdd(GameTooltip, applicantName)
+
+        local blacklistInfo = Blacklist:isBlacklisted(applicantName)
+
+        if blacklistInfo then
             GameTooltip:AddLine("Player is Blacklisted!", 255, 0, 0)
             GameTooltip:AddLine("Reason: "..blacklistInfo.reason, 255, 0, 0)
             GameTooltip:Show()
@@ -396,8 +505,68 @@ function OnLeaveApplicant(self)
     GameTooltip:Hide()
 end
 
+function Blacklist:OnCommReceived(message, channel, sender) --(prefix, message, _, sender)
+    local prefix = self
+
+	if prefix ~= COM_PREFIX or not Blacklist.Deserialize or sender == UnitName('player') then
+        return
+    end
+
+    local success, msg = Blacklist:Deserialize(message)
+end
+
+function Blacklist:OnCommReceivedCheck(message, channel, sender) --(prefix, message, _, sender)
+    local prefix = self
+	if prefix ~= COM_PREFIX_CHECK or not Blacklist.Deserialize or sender == UnitName('player') then
+        return
+    end
+
+    local success, msg = Blacklist:Deserialize(message)
+end
+
+function Blacklist:OnCommReceivedAnswer(message, channel, sender) --(prefix, message, _, sender)
+    local prefix = self
+	if prefix ~= COM_PREFIX_ANSWER or not Blacklist.Deserialize or sender == UnitName('player') then
+        return
+    end
+
+    local success, msg = Blacklist:Deserialize(message)
+end
+
+function Blacklist:OnCommReceivedAsync(message, channel, sender) --(prefix, message, _, sender)
+    local prefix = self
+	if prefix ~= COM_PREFIX_ASYNC or not Blacklist.Deserialize or sender == UnitName('player') then
+        return
+    end
+
+    local success, msg = Blacklist:Deserialize(message)
+
+    if msg.task == "isBlacklisted" then
+        local blacklistInfo = Blacklist:getBlacklistInfo(msg.ask)
+        
+        if blacklistInfo then
+            Blacklist:sendAnswer({
+                prefix = msg.prefix,
+                answer = blacklistInfo,
+                channel = msg.channel,
+                receiver = msg.receiver
+            })
+        end
+    end
+end
+
 function Blacklist:OnInitialize()
+    self:RegisterComm(COM_PREFIX, Blacklist.OnCommReceived)
+    self:RegisterComm(COM_PREFIX_CHECK, Blacklist.OnCommReceivedCheck)
+    self:RegisterComm(COM_PREFIX_ANSWER, Blacklist.OnCommReceivedAnswer)
+    self:RegisterComm(COM_PREFIX_ASYNC, Blacklist.OnCommReceivedAsync)
+
     self.db = LibStub("AceDB-3.0"):New("BlacklistDB")
+
+    if not self.db.global.blacklist then
+        self.db.global.blacklist = {}
+    end
+
     self.cache = {}
 
     self:CreateMenu()
@@ -408,7 +577,7 @@ function Blacklist:OnInitialize()
     hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", SetSearchEntry)
     --hooksecurefunc(FriendsTooltip, "Show", TooltipCallback) eigener callback
     hooksecurefunc("LFGListSearchEntry_Update", OnLFGListSearchEntryUpdate)
-    hooksecurefunc("LFGListApplicationViewer_UpdateApplicantMember", test)
+    hooksecurefunc("LFGListApplicationViewer_UpdateApplicantMember", OnUpdateApplicantMember)
 
     LFGListFrame.ApplicationViewer.ScrollBox:RegisterCallback(ScrollBoxListMixin.Event.OnUpdate, function()
         local scrollBox = LFGListFrame.ApplicationViewer.ScrollBox
