@@ -2,6 +2,8 @@ local Blacklist = LibStub("AceAddon-3.0"):NewAddon("Blacklist", "AceConsole-3.0"
 
 local C_AddOns_IsAddOnLoaded = C_AddOns.IsAddOnLoaded
 
+local StaticPopup_Show = StaticPopup_Show
+
 local COM_PREFIX = "BLACKLIST"
 local COM_PREFIX_ASYNC = COM_PREFIX.."-AS"
 local COM_PREFIX_CHECK = COM_PREFIX.."-CHECK"
@@ -35,7 +37,14 @@ local PredefinedType = {
             RAF_RECRUIT = true
         },
         func = function(frame)
-            Blacklist:addToBlacklist(frame)
+            local playerName = Blacklist:getPlayerNameFromFrame(frame)
+
+            if not playerName then
+                return
+            end
+
+            StaticPopup_Show("BLACKLIST_REASON_POPUP", nil, nil, playerName)
+            --Blacklist:addToBlacklist(playerName)
         end,
         isHidden = function(frame)
             --NPC
@@ -59,12 +68,12 @@ local PredefinedType = {
                 end
             end
 
-            local key = Blacklist:createKeyFromFrame(frame)
-            if not key then
+            local playerName = Blacklist:getPlayerNameFromFrame(frame)
+            if not playerName then
                 return true
             end
 
-            local blacklistInfo = Blacklist:isBlacklisted(key)
+            local blacklistInfo = Blacklist:isBlacklisted(playerName)
             if blacklistInfo then
                 return true
             end
@@ -94,7 +103,13 @@ local PredefinedType = {
             RAF_RECRUIT = true
         },
         func = function(frame)
-            Blacklist:removeFromBlacklist(frame)
+            local playerName = Blacklist:getPlayerNameFromFrame(frame)
+
+            if not playerName then
+                return
+            end
+
+            Blacklist:removeFromBlacklist(playerName)
         end,
         isHidden = function(frame)
             --NPC
@@ -118,12 +133,12 @@ local PredefinedType = {
                 end
             end
 
-            local key = Blacklist:createKeyFromFrame(frame)
-            if not key then
+            local playerName = Blacklist:getPlayerNameFromFrame(frame)
+            if not playerName then
                 return true
             end
 
-            local blacklistInfo = Blacklist:isBlacklisted(key)
+            local blacklistInfo = Blacklist:isBlacklisted(playerName)
             if not blacklistInfo then
                 return true
             end
@@ -144,11 +159,11 @@ function Blacklist:sendAnswer(msg)
     Blacklist:SendCommMessage(msg.prefix, Blacklist:Serialize(msg.answer), msg.channel, msg.receiver)
 end
 
-function Blacklist:createAskMessage(key, task)
+function Blacklist:createAskMessage(playerName, task)
     local prefix = COM_PREFIX_ASYNC..asyncCounter
     asyncCounter = asyncCounter + 1 % 9999
     return {
-        ask = key,
+        ask = playerName,
         task = task,
         prefix = prefix,
         channel = "WHISPER",
@@ -182,62 +197,51 @@ function Blacklist:getLeaderNameAndServerFromName(leaderName)
     return leaderName
 end
 
-function Blacklist:createKeyFromFrame(frame)
-    local key
+function Blacklist:getPlayerNameFromFrame(frame)
+    local playerName
     if frame.unit then
-        key = self:getUnitNameAndRealmFromTarget(frame.unit)
+        playerName = self:getUnitNameAndRealmFromTarget(frame.unit)
     end
 
-    if frame.chatTarget and not key then
-        key = frame.chatTarget
+    if frame.chatTarget and not playerName then
+        playerName = frame.chatTarget
     end
 
-    if not key then
+    if not playerName then
         Dump(frame, "CAN'T CREATE KEY")
         return nil
     end
 
-    return key
+    return playerName
 end
 
-function Blacklist:addToBlacklist(frame)
+function Blacklist:addToBlacklist(playerName, reason)
     --todo: frame.which alle möglichkeiten abdecken
-    local key = self:createKeyFromFrame(frame)
-
-    if not key then
-        return
-    end
-
-    if blacklist[key] then
+    
+    if blacklist[playerName] then
         Dump(frame, "UNIT ALREADY BLACKLISTED")
         return
     end
 
-    blacklist[key] = {
+    blacklist[playerName] = {
         date = date("%Y.%m.%d %H:%M:%S"),
-        reason = "NOT YET IMPLEMENTED",
+        reason = reason,
     }
 
-    Blacklist:Print("Added < "..key.." > to Blacklist")
+    Blacklist:Print("Added < "..playerName.." > to Blacklist")
 end
 
-local function removeKeyFromTable(table, key)
-    table[key] = nil
+local function removeKeyFromTable(table, playerName)
+    table[playerName] = nil
 end
 
-function Blacklist:removeFromBlacklist(frame)
-    local key = self:createKeyFromFrame(frame)
-
-    if not key then
-        return
-    end
-
-    removeKeyFromTable(blacklist, key)
-    Blacklist:Print("Removed < "..key.." > from Blacklist")
+function Blacklist:removeFromBlacklist(playerName)
+    removeKeyFromTable(blacklist, playerName)
+    Blacklist:Print("Removed < "..playerName.." > from Blacklist")
 end
 
-function Blacklist:isBlacklisted(key)
-    return blacklist[key]
+function Blacklist:isBlacklisted(playerName)
+    return blacklist[playerName]
 end
 
 function Blacklist:isBlacklistedRemote(askMessage, callback)
@@ -421,8 +425,58 @@ function Blacklist:DisplayButtons()
     return buttonOrder > 0
 end
 
+local info = {}
+function Blacklist_CreateBarDropdown(self, level)
+    Blacklist:Print("Blacklist_CreateBarDropdown")
+	if not level then return end
+	for k in pairs(info) do info[k] = nil end
+
+    Dump(self, "self")
+
+	if not self then --and not self.relativeTo.LeftText then
+        return
+    end
+
+    Blacklist:Print("after check")
+
+    local player = Blacklist.cache.name
+		if level == 1 then
+			info.isTitle = 1
+			info.text = player
+			info.notCheckable = true
+			UIDropDownMenu_AddButton(info, level)
+
+			info = UIDropDownMenu_CreateInfo()
+
+            info.isTitle = nil
+            info.notCheckable = true
+            info.hasArrow = true
+            info.disabled = nil
+            info.text = "AnnounceDropDownMenu"
+            info.value = { ["Key"] = "AnnounceDropDownMenu" }
+            info.arg1 = Blacklist.cache.name
+            UIDropDownMenu_AddButton(info, level)
+        end
+end
+
+function Blacklist:newDropdown(frame, dropdown)
+    Blacklist:Print("newDropdown")
+	MyDropdown = CreateFrame("Frame", "Blacklist_BarDropDownMenu", frame)
+	MyDropdown.displayMode = "MENU"
+	MyDropdown.initialize = Blacklist_CreateBarDropdown
+	--UIDropDownMenu_SetAnchor(MyDropdown, 0, 0, "TOPLEFT", frame, "TOPRIGHT")
+    --CloseDropDownMenus(1)
+    ToggleDropDownMenu(1, nil, MyDropdown)
+end
+
 function Blacklist:ShowMenu(frame)
+    -- Blacklist:Print("ShowMenu")
     local dropdown = frame.dropdown
+    -- Blacklist:newDropdown(frame, dropdown)
+
+    -- if true then
+    --     return
+    -- end
 
     wipe(self.cache)
     self.cache = {
@@ -487,7 +541,7 @@ local function remoteTooltipAdd(tooltip, playerName)
 
         tooltip:AddLine("-------------------------", 255, 0, 0)
         tooltip:AddLine("Blocked by "..sender, 255, 0, 0)
-        if msg.reason then
+        if msg.reason and msg.reason ~= "" then
             tooltip:AddLine("Reason: "..msg.reason, 255, 0, 0)
         end
         if msg.date then
@@ -514,7 +568,12 @@ local function TooltipCallback(self)
 
     if blacklistInfo then
         tooltip:AddLine("Player is Blacklisted!", 255, 0, 0)
-        tooltip:AddLine("Reason: "..blacklistInfo.reason, 255, 0, 0)
+        if blacklistInfo.reason and blacklistInfo.reason ~= "" then
+            tooltip:AddLine("Reason: "..blacklistInfo.reason, 255, 0, 0)
+        end
+        if blacklistInfo.date then
+            tooltip:AddLine("Date: "..blacklistInfo.date, 255, 0, 0)
+        end
     end
 
     tooltip:Show()
@@ -530,7 +589,12 @@ local function SetSearchEntry(tooltip, resultID, _)
 
     if blacklistInfo then
         tooltip:AddLine("Player is Blacklisted!", 255, 0, 0)
-        tooltip:AddLine("Reason: "..blacklistInfo.reason, 255, 0, 0)
+        if blacklistInfo.reason and blacklistInfo.reason ~= "" then
+            tooltip:AddLine("Reason: "..blacklistInfo.reason, 255, 0, 0)
+        end
+        if blacklistInfo.date then
+            tooltip:AddLine("Date: "..blacklistInfo.date, 255, 0, 0)
+        end
         tooltip:Show()
     end
 end
@@ -617,7 +681,12 @@ function OnEnterApplicant(self)
 
         if blacklistInfo then
             GameTooltip:AddLine("Player is Blacklisted!", 255, 0, 0)
-            GameTooltip:AddLine("Reason: "..blacklistInfo.reason, 255, 0, 0)
+            if blacklistInfo.reason and blacklistInfo.reason ~= "" then
+                GameTooltip:AddLine("Reason: "..blacklistInfo.reason, 255, 0, 0)
+            end
+            if blacklistInfo.date then
+                GameTooltip:AddLine("Date: "..blacklistInfo.date, 255, 0, 0)
+            end
             GameTooltip:Show()
         end
     end
@@ -676,6 +745,21 @@ function Blacklist:OnCommReceivedAsync(message, channel, sender) --(prefix, mess
         end
     end
 end
+
+StaticPopupDialogs["BLACKLIST_REASON_POPUP"] = {
+	text = "Blacklist reason",
+	button1 = "Save",
+	button2 = "Cancel",
+	OnAccept = function(self, data, data2)
+        local reason = self.editBox:GetText()
+        Blacklist:addToBlacklist(data, reason)
+ 	end,
+	timeout = 0,
+	whileDead = true,
+	hideOnEscape = true,
+    hasEditBox = true,
+    enterClicksFirstButton = true
+}
 
 function Blacklist:OnInitialize()
     self:RegisterComm(COM_PREFIX, Blacklist.OnCommReceived)
