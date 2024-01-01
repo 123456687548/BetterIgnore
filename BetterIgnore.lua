@@ -133,7 +133,7 @@ function OnUnitPopup_ShowMenu(dropdownMenu, which, unit, name, userData, ...)
         return
     end
 
-    if not UnitIsPlayer(unit) then
+    if which ~= "FRIEND" and not UnitIsPlayer(unit) then
         return
     end
 
