@@ -1,4 +1,4 @@
-local Blacklist = LibStub("AceAddon-3.0"):NewAddon("Blacklist", "AceConsole-3.0", "AceHook-3.0", "AceComm-3.0", "AceSerializer-3.0")
+local BI = LibStub("AceAddon-3.0"):NewAddon("BetterIgnore", "AceConsole-3.0", "AceHook-3.0", "AceComm-3.0", "AceSerializer-3.0")
 
 local StaticPopup_Show = StaticPopup_Show
 
@@ -13,7 +13,7 @@ StaticPopupDialogs["BLACKLIST_REASON_POPUP"] = {
 	button2 = "Cancel",
 	OnAccept = function(self, data, data2)
         local reason = self.editBox:GetText()
-        Blacklist:addToBlacklist(data, reason)
+        BI:addToBlacklist(data, reason)
  	end,
 	timeout = 0,
 	whileDead = true,
@@ -98,7 +98,7 @@ local ContextBtnTypes = {
                 
                 local playerServerName = name.."-"..server
 
-                Blacklist:removeFromBlacklist(playerServerName)
+                BI:removeFromBlacklist(playerServerName)
             end
         end,
     }
@@ -155,7 +155,7 @@ function OnUnitPopup_ShowMenu(dropdownMenu, which, unit, name, userData, ...)
 
     local playerServerName = name.."-"..server
 
-    local blacklistInfo = Blacklist:isBlacklisted(playerServerName)
+    local blacklistInfo = BI:isBlacklisted(playerServerName)
     if not blacklistInfo then
         addContextBtn(which, ContextBtnTypes.BLACKLIST)
     else
@@ -165,16 +165,16 @@ end
 
 local asyncCounter = 1
 
-function Blacklist:sendMessage(msg, prefix)
+function BI:sendMessage(msg, prefix)
     prefix = prefix or COM_PREFIX
-    Blacklist:SendCommMessage(prefix, Blacklist:Serialize(msg), "RAID", nil)
+    BI:SendCommMessage(prefix, BI:Serialize(msg), "RAID", nil)
 end
 
-function Blacklist:sendAnswer(msg)
-    Blacklist:SendCommMessage(msg.prefix, Blacklist:Serialize(msg.answer), msg.channel, msg.receiver)
+function BI:sendAnswer(msg)
+    BI:SendCommMessage(msg.prefix, BI:Serialize(msg.answer), msg.channel, msg.receiver)
 end
 
-function Blacklist:createAskMessage(playerName, task)
+function BI:createAskMessage(playerName, task)
     local prefix = COM_PREFIX_ASYNC..asyncCounter
     asyncCounter = asyncCounter + 1 % 9999
     return {
@@ -186,28 +186,28 @@ function Blacklist:createAskMessage(playerName, task)
     }
 end
 
-function Blacklist:buildNextMessageHandler(askMessage, callback)
+function BI:buildNextMessageHandler(askMessage, callback)
     self:RegisterComm(askMessage.prefix, callback)
 end
 
-function Blacklist:sendAskAsync(askMessage, callback)
-    Blacklist:buildNextMessageHandler(askMessage, callback)
-    Blacklist:SendCommMessage(COM_PREFIX_ASYNC, Blacklist:Serialize(askMessage), "RAID", nil)
+function BI:sendAskAsync(askMessage, callback)
+    BI:buildNextMessageHandler(askMessage, callback)
+    BI:SendCommMessage(COM_PREFIX_ASYNC, BI:Serialize(askMessage), "RAID", nil)
 end
 
-function Blacklist:OnCommReceivedAsync(message, channel, sender) --(prefix, message, _, sender)
+function BI:OnCommReceivedAsync(message, channel, sender) --(prefix, message, _, sender)
     local prefix = self
-	if prefix ~= COM_PREFIX_ASYNC or not Blacklist.Deserialize or sender == UnitName('player') then
+	if prefix ~= COM_PREFIX_ASYNC or not BI.Deserialize or sender == UnitName('player') then
         return
     end
 
-    local success, msg = Blacklist:Deserialize(message)
+    local success, msg = BI:Deserialize(message)
 
     if msg.task == "isBlacklisted" then
-        local blacklistInfo = Blacklist:isBlacklisted(msg.ask)
+        local blacklistInfo = BI:isBlacklisted(msg.ask)
         
         if blacklistInfo then
-            Blacklist:sendAnswer({
+            BI:sendAnswer({
                 prefix = msg.prefix,
                 answer = blacklistInfo,
                 channel = msg.channel,
@@ -217,7 +217,7 @@ function Blacklist:OnCommReceivedAsync(message, channel, sender) --(prefix, mess
     end
 end
 
-function Blacklist:getUnitNameAndRealmFromTarget(unit)
+function BI:getUnitNameAndRealmFromTarget(unit)
     local unitName, unitRealm = UnitName(unit)
 
     if not unitRealm then
@@ -227,14 +227,14 @@ function Blacklist:getUnitNameAndRealmFromTarget(unit)
     return unitName.."-"..unitRealm
 end
 
-function Blacklist:getLeaderNameAndServerFromName(leaderName)
+function BI:getLeaderNameAndServerFromName(leaderName)
     if not string.find(leaderName, "-") then
         leaderName = leaderName.."-"..GetRealmName()
     end
     return leaderName
 end
 
-function Blacklist:getPlayerNameFromFrame(frame)
+function BI:getPlayerNameFromFrame(frame)
     local playerName
     if frame.unit then
         playerName = self:getUnitNameAndRealmFromTarget(frame.unit)
@@ -252,7 +252,7 @@ function Blacklist:getPlayerNameFromFrame(frame)
     return playerName
 end
 
-function Blacklist:addToBlacklist(playerName, reason)
+function BI:addToBlacklist(playerName, reason)
     --todo: frame.which alle möglichkeiten abdecken
     
     if blacklist[playerName] then
@@ -265,36 +265,36 @@ function Blacklist:addToBlacklist(playerName, reason)
         reason = reason,
     }
 
-    Blacklist:Print("Added < "..playerName.." > to Blacklist")
+    BI:Print("Added < "..playerName.." > to Blacklist")
 end
 
 local function removeKeyFromTable(table, playerName)
     table[playerName] = nil
 end
 
-function Blacklist:removeFromBlacklist(playerName)
+function BI:removeFromBlacklist(playerName)
     removeKeyFromTable(blacklist, playerName)
-    Blacklist:Print("Removed < "..playerName.." > from Blacklist")
+    BI:Print("Removed < "..playerName.." > from Blacklist")
 end
 
-function Blacklist:isBlacklisted(playerName)
+function BI:isBlacklisted(playerName)
     return blacklist[playerName]
 end
 
-function Blacklist:isBlacklistedRemote(askMessage, callback)
-    Blacklist:sendAskAsync(askMessage, callback)
+function BI:isBlacklistedRemote(askMessage, callback)
+    BI:sendAskAsync(askMessage, callback)
 end
 
 local function remoteTooltipAdd(tooltip, playerName)
     local remoteBlocks = {}
 
-    local askMessage = Blacklist:createAskMessage(playerName, "isBlacklisted")
-    Blacklist:isBlacklistedRemote(askMessage, function(self, message, channel, sender)
-        if askMessage.prefix ~= self or not Blacklist.Deserialize or sender == UnitName('player') then
+    local askMessage = BI:createAskMessage(playerName, "isBlacklisted")
+    BI:isBlacklistedRemote(askMessage, function(self, message, channel, sender)
+        if askMessage.prefix ~= self or not BI.Deserialize or sender == UnitName('player') then
             return
         end
 
-        local success, msg = Blacklist:Deserialize(message)
+        local success, msg = BI:Deserialize(message)
 
         if remoteBlocks[playerName] and remoteBlocks[playerName][sender] then
             return
@@ -321,13 +321,13 @@ local function TooltipCallback(self)
         return
     end
 
-    local playerName = Blacklist:getUnitNameAndRealmFromTarget(unit)
+    local playerName = BI:getUnitNameAndRealmFromTarget(unit)
 
     local tooltip = self
 
     remoteTooltipAdd(tooltip, playerName)
 
-    local blacklistInfo = Blacklist:isBlacklisted(playerName)
+    local blacklistInfo = BI:isBlacklisted(playerName)
 
     if blacklistInfo then
         tooltip:AddLine("Player is Blacklisted!", 255, 0, 0)
@@ -344,11 +344,11 @@ end
 
 local function SetSearchEntry(tooltip, resultID, _)
     local entry = C_LFGList.GetSearchResultInfo(resultID)
-    local leaderName = Blacklist:getLeaderNameAndServerFromName(entry.leaderName)
+    local leaderName = BI:getLeaderNameAndServerFromName(entry.leaderName)
 
     remoteTooltipAdd(tooltip, leaderName)
 
-    local blacklistInfo = Blacklist:isBlacklisted(leaderName)
+    local blacklistInfo = BI:isBlacklisted(leaderName)
 
     if blacklistInfo then
         tooltip:AddLine("Player is Blacklisted!", 255, 0, 0)
@@ -365,13 +365,13 @@ end
 local function remoteTextChange(frame, playerName, originalName)
     local remoteBlocks = {}
 
-    local askMessage = Blacklist:createAskMessage(playerName, "isBlacklisted")
-    Blacklist:isBlacklistedRemote(askMessage, function(self, message, channel, sender)
-        if askMessage.prefix ~= self or not Blacklist.Deserialize or sender == UnitName('player') then
+    local askMessage = BI:createAskMessage(playerName, "isBlacklisted")
+    BI:isBlacklistedRemote(askMessage, function(self, message, channel, sender)
+        if askMessage.prefix ~= self or not BI.Deserialize or sender == UnitName('player') then
             return
         end
 
-        local success, msg = Blacklist:Deserialize(message)
+        local success, msg = BI:Deserialize(message)
 
         if remoteBlocks[playerName] and remoteBlocks[playerName][sender] then
             return
@@ -388,11 +388,11 @@ local function OnLFGListSearchEntryUpdate(self)
     local searchResultInfo = C_LFGList.GetSearchResultInfo(self.resultID)
 
     if searchResultInfo.leaderName then
-        local leaderName = Blacklist:getLeaderNameAndServerFromName(searchResultInfo.leaderName)
+        local leaderName = BI:getLeaderNameAndServerFromName(searchResultInfo.leaderName)
 
         remoteTextChange(self, leaderName, searchResultInfo.name)
 
-        local blacklistInfo = Blacklist:isBlacklisted(leaderName)
+        local blacklistInfo = BI:isBlacklisted(leaderName)
 
         if blacklistInfo then
             self.Name:SetText("[B] "..searchResultInfo.name)
@@ -404,11 +404,11 @@ end
 local function OnUpdateApplicantMember(member, appID, memberIdx, status, pendingStatus)
 	local name = C_LFGList.GetApplicantMemberInfo(appID, memberIdx);
 
-    local applicantName = Blacklist:getLeaderNameAndServerFromName(name)
+    local applicantName = BI:getLeaderNameAndServerFromName(name)
 
     remoteTextChange(member, applicantName, name)
 
-    local blacklistInfo = Blacklist:isBlacklisted(applicantName)
+    local blacklistInfo = BI:isBlacklisted(applicantName)
 
     if blacklistInfo then
         member.Name:SetText("[B] "..name)
@@ -436,11 +436,11 @@ function OnEnterApplicant(self)
     elseif self.memberIdx then
         local parent = self:GetParent()
         local fullName = C_LFGList.GetApplicantMemberInfo(parent.applicantID, self.memberIdx)
-        local applicantName = Blacklist:getLeaderNameAndServerFromName(fullName)
+        local applicantName = BI:getLeaderNameAndServerFromName(fullName)
 
         remoteTooltipAdd(GameTooltip, applicantName)
 
-        local blacklistInfo = Blacklist:isBlacklisted(applicantName)
+        local blacklistInfo = BI:isBlacklisted(applicantName)
 
         if blacklistInfo then
             GameTooltip:AddLine("Player is Blacklisted!", 255, 0, 0)
@@ -459,10 +459,10 @@ function OnLeaveApplicant(self)
     GameTooltip:Hide()
 end
 
-function Blacklist:OnInitialize()
-    self:RegisterComm(COM_PREFIX_ASYNC, Blacklist.OnCommReceivedAsync)
+function BI:OnInitialize()
+    self:RegisterComm(COM_PREFIX_ASYNC, BI.OnCommReceivedAsync)
 
-    self.db = LibStub("AceDB-3.0"):New("BlacklistDB")
+    self.db = LibStub("AceDB-3.0"):New("BetterIgnoreDB")
 
     if not self.db.global.blacklist then
         self.db.global.blacklist = {}
@@ -493,7 +493,7 @@ function Blacklist:OnInitialize()
 end
 
 function Dump(table, desc)
-    Blacklist:Print(desc)
+    BI:Print(desc)
     DevTools_Dump(table)
 end
 
