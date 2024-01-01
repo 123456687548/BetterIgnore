@@ -12,6 +12,7 @@ jobs:
     env:
       CF_API_KEY: ${{ secrets.CF_API_KEY }}
       GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}  
+      test: ${{ secrets.TEST }}
 
     steps:
       - name: Clone project
