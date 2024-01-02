@@ -3,6 +3,7 @@ BetterIgnore adds an additional ignore list. Intended to soft block players for 
 
 ## Download
 - [Curseforge [PLACEHOLDER]](https://www.curseforge.com/wow/addons/betterignore/files)
+- [WoW Interface](https://www.wowinterface.com/downloads/info26670-BetterIgnore.html)
 - [Github latest release](https://github.com/123456687548/BetterIgnore/releases/latest)
 
 ## Features
