@@ -1,5 +1,7 @@
 local BI = LibStub("AceAddon-3.0"):NewAddon("BetterIgnore", "AceConsole-3.0", "AceHook-3.0", "AceComm-3.0", "AceSerializer-3.0")
 
+local L = LibStub("AceLocale-3.0"):GetLocale("BetterIgnore")
+
 local StaticPopup_Show = StaticPopup_Show
 
 local COM_PREFIX = "BLACKLIST"
@@ -7,10 +9,14 @@ local COM_PREFIX_ASYNC = COM_PREFIX.."-AS"
 
 local blacklist
 
+local function lStrFormat(key, ...)
+    return string.format(L[key], ...)
+end
+
 StaticPopupDialogs["BLACKLIST_REASON_POPUP"] = {
-	text = "Blacklist reason",
-	button1 = "Save",
-	button2 = "Cancel",
+	text = L["reasonPopupText"],
+	button1 = L["saveBtn"],
+	button2 = L["cancelBtn"],
 	OnAccept = function(self, data, data2)
         local reason = self.editBox:GetText()
         BI:addToBlacklist(data, reason)
@@ -24,7 +30,7 @@ StaticPopupDialogs["BLACKLIST_REASON_POPUP"] = {
 
 local ContextBtnTypes = {
     BLACKLIST = {
-        name = "Blacklist",
+        name = L["blacklistBtn"],
         color = "|cffff0000",
         unitTypes = {
             "PARTY",
@@ -46,7 +52,7 @@ local ContextBtnTypes = {
         },
         func = function(self)
             local button = self.value;
-            if ( button == "Blacklist" ) then
+            if ( button == L["blacklistBtn"] ) then
                 local dropdownFrame = UIDROPDOWNMENU_INIT_MENU
                 local unit = dropdownFrame.unit
                 local name = dropdownFrame.name
@@ -64,7 +70,7 @@ local ContextBtnTypes = {
         end,
     },
     PARDON = {
-        name = "Pardon",
+        name = L["pardonBtn"],
         color = "|cff00ff00",
         unitTypes = {
             "PARTY",
@@ -86,7 +92,7 @@ local ContextBtnTypes = {
         },
         func = function(self)
             local button = self.value;
-            if ( button == "Pardon" ) then
+            if ( button == L["pardonBtn"] ) then
                 local dropdownFrame = UIDROPDOWNMENU_INIT_MENU
                 local unit = dropdownFrame.unit
                 local name = dropdownFrame.name
@@ -245,7 +251,7 @@ function BI:getPlayerNameFromFrame(frame)
     end
 
     if not playerName then
-        Dump(frame, "CAN'T CREATE KEY")
+        Dump(frame, L["dbgCantCreateKey"])
         return nil
     end
 
@@ -256,7 +262,6 @@ function BI:addToBlacklist(playerName, reason)
     --todo: frame.which alle möglichkeiten abdecken
     
     if blacklist[playerName] then
-        Dump(frame, "UNIT ALREADY BLACKLISTED")
         return
     end
 
@@ -265,7 +270,7 @@ function BI:addToBlacklist(playerName, reason)
         reason = reason,
     }
 
-    BI:Print("Added < "..playerName.." > to Blacklist")
+    BI:Print(lStrFormat("addedToBlacklist", playerName))
 end
 
 local function removeKeyFromTable(table, playerName)
@@ -274,7 +279,7 @@ end
 
 function BI:removeFromBlacklist(playerName)
     removeKeyFromTable(blacklist, playerName)
-    BI:Print("Removed < "..playerName.." > from Blacklist")
+    BI:Print(lStrFormat("removedFromBlacklist", playerName))
 end
 
 function BI:isBlacklisted(playerName)
@@ -303,12 +308,12 @@ local function remoteTooltipAdd(tooltip, playerName)
         remoteBlocks[playerName] = {[sender] = true}
 
         tooltip:AddLine("-------------------------", 255, 0, 0)
-        tooltip:AddLine("Blocked by "..sender, 255, 0, 0)
+        tooltip:AddLine(lStrFormat("blockedByTooltip", sender), 255, 0, 0)
         if msg.reason and msg.reason ~= "" then
-            tooltip:AddLine("Reason: "..msg.reason, 255, 0, 0)
+            tooltip:AddLine(lStrFormat("reasonTooltip", msg.reason), 255, 0, 0)
         end
         if msg.date then
-            tooltip:AddLine("Date: "..msg.date, 255, 0, 0)
+            tooltip:AddLine(lStrFormat("dateTooltip", msg.date), 255, 0, 0)
         end
         tooltip:AddLine("-------------------------", 255, 0, 0)
         tooltip:Show()
@@ -330,12 +335,12 @@ local function TooltipCallback(self)
     local blacklistInfo = BI:isBlacklisted(playerName)
 
     if blacklistInfo then
-        tooltip:AddLine("Player is Blacklisted!", 255, 0, 0)
+        tooltip:AddLine(L["isBlacklistedTooltip"], 255, 0, 0)
         if blacklistInfo.reason and blacklistInfo.reason ~= "" then
-            tooltip:AddLine("Reason: "..blacklistInfo.reason, 255, 0, 0)
+            tooltip:AddLine(lStrFormat("reasonTooltip", blacklistInfo.reason), 255, 0, 0)
         end
         if blacklistInfo.date then
-            tooltip:AddLine("Date: "..blacklistInfo.date, 255, 0, 0)
+            tooltip:AddLine(lStrFormat("dateTooltip", blacklistInfo.date), 255, 0, 0)
         end
     end
 
@@ -351,12 +356,12 @@ local function SetSearchEntry(tooltip, resultID, _)
     local blacklistInfo = BI:isBlacklisted(leaderName)
 
     if blacklistInfo then
-        tooltip:AddLine("Player is Blacklisted!", 255, 0, 0)
+        tooltip:AddLine(L["isBlacklistedTooltip"], 255, 0, 0)
         if blacklistInfo.reason and blacklistInfo.reason ~= "" then
-            tooltip:AddLine("Reason: "..blacklistInfo.reason, 255, 0, 0)
+            tooltip:AddLine(string.format(L["reasonTooltip"], blacklistInfo.reason), 255, 0, 0)
         end
         if blacklistInfo.date then
-            tooltip:AddLine("Date: "..blacklistInfo.date, 255, 0, 0)
+            tooltip:AddLine(string.format(L["dateTooltip"], blacklistInfo.date), 255, 0, 0)
         end
         tooltip:Show()
     end
@@ -443,12 +448,12 @@ function OnEnterApplicant(self)
         local blacklistInfo = BI:isBlacklisted(applicantName)
 
         if blacklistInfo then
-            GameTooltip:AddLine("Player is Blacklisted!", 255, 0, 0)
+            GameTooltip:AddLine(L["isBlacklistedTooltip"], 255, 0, 0)
             if blacklistInfo.reason and blacklistInfo.reason ~= "" then
-                GameTooltip:AddLine("Reason: "..blacklistInfo.reason, 255, 0, 0)
+                GameTooltip:AddLine(lStrFormat("reasonTooltip", blacklistInfo.reason), 255, 0, 0)
             end
             if blacklistInfo.date then
-                GameTooltip:AddLine("Date: "..blacklistInfo.date, 255, 0, 0)
+                GameTooltip:AddLine(lStrFormat("dateTooltip", blacklistInfo.date), 255, 0, 0)
             end
             GameTooltip:Show()
         end

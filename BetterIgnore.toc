@@ -11,4 +11,7 @@
 
 embeds.xml
 
+localization\enUS.lua
+localization\deDE.lua
+
 BetterIgnore.lua
