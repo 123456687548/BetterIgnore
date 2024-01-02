@@ -8,6 +8,7 @@
 ## SavedVariables: BetterIgnoreDB
 
 ## X-Curse-Project-ID: 956751
+## X-WoWI-ID: 26670
 
 embeds.xml
 
