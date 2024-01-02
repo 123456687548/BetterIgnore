@@ -1,6 +1,10 @@
 # BetterIgnore
 BetterIgnore adds an additional ignore list. Intended to soft block players for leaving keys or being toxic.
 
+## Download
+- [Curseforge [PLACEHOLDER]](https://www.curseforge.com/wow/addons/betterignore/files)
+- [Github latest release](https://github.com/123456687548/BetterIgnore/releases/latest)
+
 ## Features
 - Blacklist of blocked Players.
 - Extends tooltip of blocked players.
