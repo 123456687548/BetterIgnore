@@ -1,6 +1,6 @@
-local BI = LibStub("AceAddon-3.0"):NewAddon("BetterIgnore", "AceConsole-3.0", "AceHook-3.0", "AceComm-3.0", "AceSerializer-3.0")
+local BI = LibStub("AceAddon-3.0"):NewAddon("PlayerBlacklist", "AceConsole-3.0", "AceHook-3.0", "AceComm-3.0", "AceSerializer-3.0")
 
-local L = LibStub("AceLocale-3.0"):GetLocale("BetterIgnore")
+local L = LibStub("AceLocale-3.0"):GetLocale("PlayerBlacklist")
 
 local StaticPopup_Show = StaticPopup_Show
 
@@ -467,7 +467,7 @@ end
 function BI:OnInitialize()
     self:RegisterComm(COM_PREFIX_ASYNC, BI.OnCommReceivedAsync)
 
-    self.db = LibStub("AceDB-3.0"):New("BetterIgnoreDB")
+    self.db = LibStub("AceDB-3.0"):New("PlayerBlacklistDB")
 
     if not self.db.global.blacklist then
         self.db.global.blacklist = {}

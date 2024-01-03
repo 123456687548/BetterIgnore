@@ -1,13 +1,13 @@
 ## Interface: 100200
-## Title: BetterIgnore
+## Title: PlayerBlacklist
 ## Version: 1.0.0
-## Notes: DB for Keyleavers and Trolls
+## Notes: PlayerBlacklist adds the ability to blacklist players for bad behavior.
 ## Creator: 123456687548
 ## Author: 123456687548
 ## OptionalDeps: Ace3, LibSharedMedia-3.0, 
-## SavedVariables: BetterIgnoreDB
+## SavedVariables: PlayerBlacklistDB
 
-## X-Curse-Project-ID: 957560
+## X-Curse-Project-ID: 957632
 ## X-WoWI-ID: 26670
 
 embeds.xml
@@ -15,4 +15,4 @@ embeds.xml
 localization\enUS.lua
 localization\deDE.lua
 
-BetterIgnore.lua
+PlayerBlacklist.lua

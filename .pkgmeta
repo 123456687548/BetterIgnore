@@ -1,4 +1,4 @@
-package-as: BetterIgnore
+package-as: PlayerBlacklist
 
 ignore:
   - README.md

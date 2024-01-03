@@ -1,4 +1,4 @@
-local L = LibStub("AceLocale-3.0"):NewLocale("BetterIgnore", "enUS", true)
+local L = LibStub("AceLocale-3.0"):NewLocale("PlayerBlacklist", "enUS", true)
 
 L = L or {}
 L["saveBtn"] = "Save"

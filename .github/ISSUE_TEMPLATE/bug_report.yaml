@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
         value: |
-          Thank you for submitting a bug report. Please search if your issue [already exists](https://github.com/123456687548/BetterIgnore/labels/bug) before submitting a report.
+          Thank you for submitting a bug report. Please search if your issue [already exists](https://github.com/123456687548/PlayerBlacklist/labels/bug) before submitting a report.
   - type: textarea
     id: description
     attributes:
@@ -51,7 +51,7 @@ body:
     id: modversion
     attributes:
       label: Addon version
-      description: The BetterIgnore addon version where the bug appears
+      description: The PlayerBlacklist addon version where the bug appears
       placeholder: 1.0.0
     validations:
       required: true
