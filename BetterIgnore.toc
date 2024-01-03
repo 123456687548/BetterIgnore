@@ -7,7 +7,7 @@
 ## OptionalDeps: Ace3, LibSharedMedia-3.0, 
 ## SavedVariables: BetterIgnoreDB
 
-## X-Curse-Project-ID: 956751
+## X-Curse-Project-ID: 957560
 ## X-WoWI-ID: 26670
 
 embeds.xml
