@@ -182,7 +182,10 @@ end
 
 function BI:createAskMessage(playerName, task)
     local prefix = COM_PREFIX_ASYNC..asyncCounter
-    asyncCounter = asyncCounter + 1 % 9999
+    asyncCounter = asyncCounter + 1
+    if asyncCounter > 9999 then
+        asyncCounter = 1
+    end
     return {
         ask = playerName,
         task = task,
@@ -291,6 +294,10 @@ function BI:isBlacklistedRemote(askMessage, callback)
 end
 
 local function remoteTooltipAdd(tooltip, playerName)
+    if C_PvP.IsPVPMap() then
+        return
+    end
+
     local remoteBlocks = {}
 
     local askMessage = BI:createAskMessage(playerName, "isBlacklisted")
@@ -368,6 +375,10 @@ local function SetSearchEntry(tooltip, resultID, _)
 end
 
 local function remoteTextChange(frame, playerName, originalName)
+    if C_PvP.IsPVPMap() then
+        return
+    end
+    
     local remoteBlocks = {}
 
     local askMessage = BI:createAskMessage(playerName, "isBlacklisted")
